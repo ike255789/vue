@@ -1,44 +1,41 @@
 /* @flow */
 
-import { hyphenate, toObject } from 'shared/util'
+import { escape, noUnitNumericStyleProps } from '../util'
+import { hyphenate } from 'shared/util'
+import { getStyle } from 'web/util/style'
 
-function concatStyleString (former: string, latter: string) {
-  if (former === '' || latter === '' || former.charAt(former.length - 1) === ';') {
-    return former + latter
-  }
-  return former + ';' + latter
-}
-
-function generateStyleText (node) {
-  const staticStyle = node.data.attrs && node.data.attrs.style
-  let styles = node.data.style
-  const parentStyle = node.parent ? generateStyleText(node.parent) : ''
-
-  if (!styles && !staticStyle) {
-    return parentStyle
-  }
-
-  let dynamicStyle = ''
-  if (styles) {
-    if (typeof styles === 'string') {
-      dynamicStyle += styles
+export function genStyle (style: Object): string {
+  let styleText = ''
+  for (const key in style) {
+    const value = style[key]
+    const hyphenatedKey = hyphenate(key)
+    if (Array.isArray(value)) {
+      for (let i = 0, len = value.length; i < len; i++) {
+        styleText += normalizeValue(hyphenatedKey, value[i])
+      }
     } else {
-      if (Array.isArray(styles)) {
-        styles = toObject(styles)
-      }
-      for (const key in styles) {
-        dynamicStyle += `${hyphenate(key)}:${styles[key]};`
-      }
+      styleText += normalizeValue(hyphenatedKey, value)
     }
   }
-
-  dynamicStyle = concatStyleString(parentStyle, dynamicStyle)
-  return concatStyleString(dynamicStyle, staticStyle || '')
+  return styleText
 }
 
-export default function renderStyle (node: VNodeWithData): ?string {
-  const res = generateStyleText(node)
-  if (res) {
-    return ` style=${JSON.stringify(res)}`
+function normalizeValue(key: string, value: any): string {
+  if (
+    typeof value === 'string' ||
+    (typeof value === 'number' && noUnitNumericStyleProps[key]) ||
+    value === 0
+  ) {
+    return `${key}:${value};`
+  } else {
+    // invalid values
+    return ``
+  }
+}
+
+export default function renderStyle (vnode: VNodeWithData): ?string {
+  const styleText = genStyle(getStyle(vnode, false))
+  if (styleText !== '') {
+    return ` style=${JSON.stringify(escape(styleText))}`
   }
 }

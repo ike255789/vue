@@ -1,4 +1,4 @@
-import Vue from '../../dist/vue.common.js'
+import Vue from '../../dist/vue.runtime.common.js'
 import { createRenderer } from '../../packages/vue-server-renderer'
 const { renderToStream } = createRenderer()
 
@@ -51,7 +51,7 @@ describe('SSR: renderToStream', () => {
     })
     stream.on('end', () => {
       expect(res).toContain(
-        '<div server-rendered="true">' +
+        '<div data-server-rendered="true">' +
           '<p class="hi">yoyo</p> ' +
           '<div id="ho" class="a red"></div> ' +
           '<span>hi</span> ' +
@@ -65,6 +65,7 @@ describe('SSR: renderToStream', () => {
   })
 
   it('should catch error', done => {
+    Vue.config.silent = true
     const stream = renderToStream(new Vue({
       render () {
         throw new Error('oops')
@@ -72,6 +73,7 @@ describe('SSR: renderToStream', () => {
     }))
     stream.on('error', err => {
       expect(err.toString()).toMatch(/oops/)
+      Vue.config.silent = false
       done()
     })
     stream.on('data', _ => _)
@@ -87,9 +89,9 @@ describe('SSR: renderToStream', () => {
       template: `<div></div>`,
       _scopeId: '_component2'
     })
-    var stream1 = renderToStream(component1)
-    var stream2 = renderToStream(component2)
-    var res = ''
+    const stream1 = renderToStream(component1)
+    const stream2 = renderToStream(component2)
+    let res = ''
     stream1.on('data', (text) => {
       res += text.toString('utf-8').replace(/x/g, '')
     })
@@ -99,5 +101,27 @@ describe('SSR: renderToStream', () => {
     })
     stream1.read(1)
     stream2.read(1)
+  })
+
+  it('should call context.rendered', done => {
+    let a = 0
+    const stream = renderToStream(new Vue({
+      template: `
+        <div>Hello</div>
+      `
+    }), {
+      rendered: () => {
+        a = 42
+      }
+    })
+    let res = ''
+    stream.on('data', chunk => {
+      res += chunk
+    })
+    stream.on('end', () => {
+      expect(res).toContain('<div data-server-rendered="true">Hello</div>')
+      expect(a).toBe(42)
+      done()
+    })
   })
 })
